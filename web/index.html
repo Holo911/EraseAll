@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EraseAll - Remove</title>
+  <!-- Declaring the icon stops browsers probing /favicon.ico (4x 404s per load). -->
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="toolbar">
+      <div class="group">
+        <label class="btn" for="fileInput">Upload</label>
+        <!-- HEIC often arrives with an empty MIME type, so accept by extension too;
+             the server's PIL open is the real validator. -->
+        <input id="fileInput" type="file"
+               accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif" hidden />
+      </div>
+
+      <div class="group" id="modeGroup">
+        <span class="label">Mode</span>
+        <label class="pill selected"><input type="radio" name="mode" value="raw" checked /> Raw</label>
+        <label class="pill"><input type="radio" name="mode" value="smart" /> Smart</label>
+        <label class="pill"><input type="radio" name="mode" value="object" /> Object</label>
+        <label class="pill"><input type="radio" name="mode" value="stamp" /> Stamp</label>
+        <label class="pill"><input type="radio" name="mode" value="crop" /> Crop</label>
+      </div>
+
+      <div class="group hidden" id="cropGroup">
+        <span class="label">Straighten</span>
+        <input id="straightenSlider" type="range" min="-45" max="45" step="0.5" value="0" />
+        <span id="straightenReadout" class="readout">0°</span>
+        <button id="rotCcwBtn" class="btn" title="Rotate 90° counter-clockwise">⟲</button>
+        <button id="rotCwBtn" class="btn" title="Rotate 90° clockwise">⟳</button>
+      </div>
+
+      <div class="group">
+        <span class="label">Brush</span>
+        <input id="brushSize" type="range" min="5" max="200" value="40" />
+        <span id="brushReadout" class="readout">40</span>
+      </div>
+
+      <div class="group">
+        <button id="eraserBtn" class="btn toggle" title="Eraser (E)">Eraser</button>
+        <button id="peopleBtn" class="btn" title="Detect people to select" disabled>Select people</button>
+        <button id="clearBtn" class="btn" title="Clear selection">Clear</button>
+      </div>
+
+      <div class="group" id="edgeGroup" title="Grow (+) or shrink (-) the selection before removing - fixes leftover halos without re-brushing">
+        <span class="label">Edge</span>
+        <input id="edgeSlider" type="range" min="-20" max="20" value="0" />
+        <span id="edgeReadout" class="readout">0</span>
+      </div>
+
+      <div class="group grow"></div>
+
+      <div class="group">
+        <button id="undoBtn" class="btn" title="Undo (Ctrl+Z)" disabled>Undo</button>
+        <button id="redoBtn" class="btn" title="Redo (Ctrl+Y)" disabled>Redo</button>
+        <button id="beforeBtn" class="btn" title="Hold B to compare">Before</button>
+        <button id="downloadBtn" class="btn" title="Export / download" disabled>Download</button>
+      </div>
+
+      <div class="group" id="methodGroup" title="Pattern: for carpets, fabrics, bricks - rebuilds repeating texture">
+        <span class="label">Fill</span>
+        <label class="pill selected"><input type="radio" name="method" value="structure" checked /> Auto</label>
+        <label class="pill"><input type="radio" name="method" value="pattern" /> Pattern</label>
+      </div>
+
+      <div class="group">
+        <button id="removeBtn" class="btn primary" disabled>Remove object</button>
+      </div>
+
+      <div class="group">
+        <button id="helpBtn" class="btn" title="Keyboard shortcuts">?</button>
+      </div>
+    </header>
+
+    <div id="exportPopover" class="hidden">
+      <h3>Export</h3>
+      <div class="row">
+        <label class="pill selected"><input type="radio" name="fmt" value="png" checked /> PNG</label>
+        <label class="pill"><input type="radio" name="fmt" value="jpeg" /> JPEG</label>
+      </div>
+      <div class="row hidden" id="qualityRow">
+        <span class="label">Quality</span>
+        <input id="qualitySlider" type="range" min="60" max="100" value="90" />
+        <span id="qualityReadout" class="readout">90</span>
+      </div>
+      <div class="row">
+        <label class="check"><input id="exifToggle" type="checkbox" checked /> Keep photo metadata (EXIF)</label>
+      </div>
+      <div class="row end">
+        <button id="exportGo" class="btn primary">Download</button>
+        <button id="exportClose" class="btn">Close</button>
+      </div>
+    </div>
+
+    <div id="shortcuts" class="hidden">
+      <h3>Shortcuts</h3>
+      <ul>
+        <li><b>Raw mode</b> - paint the selection by hand</li>
+        <li><b>Smart mode</b> - scribble on an object; it snaps to the whole thing. Each scribble only adds to the selection near it - earlier picks stay put</li>
+        <li><b>Alt / right-drag</b> - carve out a sub-object (Smart mode)</li>
+        <li><b>Object mode</b> - hover to highlight a whole object, click to add it, Alt-click to remove it, or drag a box around it</li>
+        <li><b>Select people</b> - auto-detect everyone; click a chip to keep/drop a person, then Remove</li>
+        <li><b>Fill: Auto / Pattern</b> - Auto blends structure; Pattern rebuilds repeating texture (carpets, fabrics, bricks)</li>
+        <li><b>Remove</b> gives you 3 fills to choose from - <b>1/2/3</b> to preview, <b>Enter</b> to keep, <b>Esc</b> to cancel</li>
+        <li><b>Edge</b> slider - grow/shrink the selection before removing; nudge to <b>+10</b> if a halo survives</li>
+        <li><b>Stamp mode</b> - <b>Alt-click</b> a clean area to set the source, then paint to clone it over a flaw. <b>Ctrl+Z</b> undoes dabs; Apply commits</li>
+        <li><b>[</b> / <b>]</b> - brush smaller / larger</li>
+        <li><b>E</b> - toggle eraser (raw mode)</li>
+        <li><b>Crop mode</b> - drag a rectangle, straighten with the slider, ⟲/⟳ for 90°, then Apply</li>
+        <li><b>Scroll</b> - zoom (anchored at cursor) · <b>double-click</b> or <b>0</b> - fit · <b>1</b> - 100%</li>
+        <li><b>Space-drag</b> or <b>middle-drag</b> - pan</li>
+        <li><b>Hold B</b> - compare with the original</li>
+        <li><b>Ctrl+Z</b> - undo the last selection scribble, then removals; <b>Ctrl+Y</b> - redo</li>
+      </ul>
+    </div>
+
+    <main id="stage">
+      <div id="canvasContainer" class="empty">
+        <canvas id="imageCanvas"></canvas>
+        <canvas id="overlayCanvas"></canvas>
+        <div id="emptyHint">
+          <p>Drop a photo here, or click <strong>Upload</strong>.</p>
+          <p class="sub">Paint over an object, then Remove it. Everything runs locally.</p>
+          <p class="sub">Tip: scroll to zoom · space-drag to pan · press <strong>?</strong> for shortcuts.</p>
+        </div>
+        <div id="objectsBadge" class="hidden"><div class="mini-spinner"></div>Analyzing objects…</div>
+        <div id="peopleChips"></div>
+        <div id="cursorSpinner" class="hidden"></div>
+        <div id="progress" class="hidden"><div class="spinner"></div><span id="progressText">Working…</span></div>
+      </div>
+      <div id="applyBar" class="hidden">
+        <span id="applyBarLabel">Stamp edits</span>
+        <button id="applyBtn" class="btn primary">Apply</button>
+        <button id="applyCancelBtn" class="btn">Cancel</button>
+      </div>
+
+      <div id="variantStrip" class="hidden">
+        <span class="strip-label">Pick a fill</span>
+        <div id="variantThumbs"></div>
+        <div class="strip-actions">
+          <button id="variantKeep" class="btn primary">Keep</button>
+          <button id="variantCancel" class="btn">Cancel</button>
+        </div>
+        <span class="strip-hint">1 / 2 / 3 · Enter to keep · Esc to cancel</span>
+      </div>
+      <!-- Room reserved at the bottom for a future prompt bar (out of scope now). -->
+    </main>
+
+    <div id="toasts"></div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

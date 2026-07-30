@@ -1,0 +1,10 @@
+venv/
+data/
+models/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.out.png
+
+# ultralytics writes its settings dir here; guard the fallback location
+Ultralytics/

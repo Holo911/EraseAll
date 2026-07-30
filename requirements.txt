@@ -1,0 +1,30 @@
+# EraseAll - CPU-only, offline. Python 3.13.
+# Install torch from the CPU wheel index (the CUDA wheels are huge and useless here):
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.13.0+cpu
+torchvision==0.28.0+cpu
+
+fastapi==0.139.0
+uvicorn[standard]==0.51.0
+python-multipart==0.0.32
+pillow==12.2.0
+numpy==2.4.4
+# Pattern fill needs the OpenCV *contrib* build (cv2.xphoto). NOTE: simple-lama
+# and ultralytics both declare a plain `opencv-python` dependency, so pip pulls it
+# back in transitively. After `pip install -r requirements.txt`, drop the plain
+# builds and re-lay contrib last so cv2 has xphoto (see README step 3):
+#   pip uninstall -y opencv-python opencv-python-headless
+#   pip install --force-reinstall --no-deps opencv-contrib-python-headless==5.0.0.93
+opencv-contrib-python-headless==5.0.0.93
+timm==1.0.28
+simple-lama-inpainting==0.1.0
+
+# Smart-select (MobileSAM), installed from git (no PyPI release):
+mobile_sam @ git+https://github.com/ChaoningZhang/MobileSAM.git@f706ad9c4eb7f219c00d9050e46328518ffb65d2
+
+# People mode (YOLO11 person detection + segmentation):
+ultralytics==8.4.95
+
+# iPhone .heic / .heif import (BSD-licensed wrapper):
+pillow-heif==1.4.0
